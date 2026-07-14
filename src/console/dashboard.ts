@@ -1,8 +1,14 @@
 import { chmod, mkdir, open, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import {
+  isUiLanguage,
+  languageName,
+  nextUiLanguage,
+  type UiLanguage,
+} from '../i18n/languages.js';
 
-export type ConsoleLanguage = 'ru' | 'en';
+export type ConsoleLanguage = UiLanguage;
 export type DashboardHealth = 'starting' | 'ready' | 'checking' | 'error' | 'stopping';
 export type NotionHealth = 'unchecked' | 'ok' | 'error';
 export type DashboardAction = 'help' | 'refresh' | 'clear' | 'language' | 'quit' | 'none';
@@ -43,7 +49,7 @@ interface ConsoleCopy {
   notionHealth: Record<NotionHealth, string>;
 }
 
-const COPY: Record<ConsoleLanguage, ConsoleCopy> = {
+const COPY: Partial<Record<ConsoleLanguage, ConsoleCopy>> = {
   ru: {
     title: 'Nodex — локальный мост к Notion Custom Agents',
     status: 'Состояние',
@@ -56,7 +62,7 @@ const COPY: Record<ConsoleLanguage, ConsoleCopy> = {
     noBindings: 'нет настроенных bindings',
     notion: 'Notion',
     logs: 'Структурированные логи',
-    helpHint: 'H помощь  R проверить Notion  L English  C очистить  Q выход',
+    helpHint: 'H помощь  R проверить Notion  L язык  C очистить  Q выход',
     helpTitle: 'Клавиши',
     languageName: 'Русский',
     languageHint: 'L переключает язык и сохраняет выбор в ~/.nodex/ui.json.',
@@ -85,7 +91,7 @@ const COPY: Record<ConsoleLanguage, ConsoleCopy> = {
     noBindings: 'no bindings configured',
     notion: 'Notion',
     logs: 'Structured logs',
-    helpHint: 'H help  R check Notion  L Русский  C clear  Q quit',
+    helpHint: 'H help  R check Notion  L language  C clear  Q quit',
     helpTitle: 'Keys',
     languageName: 'English',
     languageHint: 'L switches the language and saves it to ~/.nodex/ui.json.',
@@ -112,17 +118,17 @@ export function defaultConsoleLogPath(): string {
   return join(homedir(), '.nodex', 'nodex.log');
 }
 
-export function inferredConsoleLanguage(locale = Intl.DateTimeFormat().resolvedOptions().locale): ConsoleLanguage {
-  return locale.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+export function inferredConsoleLanguage(): ConsoleLanguage {
+  return 'en';
 }
 
 export async function loadConsoleLanguage(
   path = defaultConsoleSettingsPath(),
-  fallback = inferredConsoleLanguage(),
+  fallback: ConsoleLanguage = 'en',
 ): Promise<ConsoleLanguage> {
   try {
     const value = JSON.parse(await readFile(path, 'utf8')) as { language?: unknown };
-    return value.language === 'ru' || value.language === 'en' ? value.language : fallback;
+    return isUiLanguage(value.language) ? value.language : fallback;
   } catch {
     return fallback;
   }
@@ -148,7 +154,7 @@ export async function prepareConsoleLogFile(path = defaultConsoleLogPath()): Pro
 }
 
 export function toggleConsoleLanguage(language: ConsoleLanguage): ConsoleLanguage {
-  return language === 'ru' ? 'en' : 'ru';
+  return nextUiLanguage(language);
 }
 
 export function shouldUseInteractiveConsole(options: {
@@ -195,7 +201,9 @@ function statusColor(health: DashboardHealth): number {
 }
 
 export function renderDashboard(state: DashboardState, ansi = true): string {
-  const copy = COPY[state.language];
+  const baseCopy = COPY[state.language] ?? COPY.en;
+  if (!baseCopy) throw new Error('English console copy is unavailable');
+  const copy = { ...baseCopy, languageName: languageName(state.language) };
   const address = safeText(state.address.replace(/\/$/, ''));
   const lines = [
     color(ansi, 1, copy.title),

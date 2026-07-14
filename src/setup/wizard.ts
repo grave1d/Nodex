@@ -14,9 +14,14 @@ import {
   saveConsoleLanguage,
 } from '../console/dashboard.js';
 import { loadConfig, type NodexConfig } from '../config.js';
+import { SUPPORTED_LANGUAGES } from '../i18n/languages.js';
 import { assertCompleteTurn, parseProtocol } from '../protocol/parser.js';
 import { generateProtocolPreamble } from '../protocol/preamble.js';
-import { InternalNotionTransport, sameNotionId } from '../transport/notion.js';
+import {
+  InternalNotionTransport,
+  notionModelOptions,
+  sameNotionId,
+} from '../transport/notion.js';
 import type {
   AgentBinding,
   DiscoveredNotionAgent,
@@ -27,7 +32,6 @@ import type {
 import { diagnoseAgentBindings, diagnosticLines } from './diagnostics.js';
 import {
   appendGitignoreEntries,
-  codexConfigSnippet,
   DEFAULT_MODEL_ID,
   ensureLocalApiKey,
   missingGitignoreEntries,
@@ -95,7 +99,6 @@ function welcomeHeader(
     ...NODEX_LOGO,
     copy.tagline,
     `${copy.version} ${version} · ${copy.license}`,
-    copy.privateApiWarning,
     ...(account ? ['', `${copy.account}: ${account.userEmail || account.userName}`, `${copy.workspace}: ${account.workspaceName}`] : []),
     ...(selected ? [`${copy.current}: ${selected.name}`] : []),
   ];
@@ -205,7 +208,7 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
     if (account) return true;
     const copy = SETUP_COPY[language];
     try {
-      account = await transport.preflight();
+      account = await terminal.wait(copy.checkingSession, async () => transport.preflight());
       return true;
     } catch {
       terminal.screen([copy.connectFirst]);
@@ -217,13 +220,15 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
   const connect = async (): Promise<void> => {
     for (;;) {
       const copy = SETUP_COPY[language];
-      terminal.screen([copy.openingNotion]);
-      let credentials: Credentials;
       try {
-        credentials = await authenticate({
-          onStatus: (status) => { terminal.screen([browserStatusLine(status, copy)]); },
+        account = await terminal.wait(copy.openingNotion, async (update) => {
+          const credentials = await authenticate({
+            forceSignIn: true,
+            onStatus: (status) => { update(browserStatusLine(status, copy)); },
+          });
+          update(copy.checkingSession);
+          return transport.preflight(credentials);
         });
-        account = await transport.preflight(credentials);
       } catch (error) {
         const action = await terminal.choose(copy.authFailed, [
           { value: 'retry', label: copy.retry },
@@ -233,13 +238,17 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
         ] as const, { header: [errorMessage(error)] });
         if (action === 'retry') continue;
         if (action === 'troubleshooting') {
-          await openUrl(`${DOCUMENTATION_URL.replace('#readme', '')}/blob/main/docs/advanced/troubleshooting.md`);
+          await terminal.wait(copy.troubleshooting, async () => {
+            return openUrl(`${DOCUMENTATION_URL.replace('#readme', '')}/blob/main/docs/advanced/troubleshooting.md`);
+          });
           continue;
         }
         if (action !== 'manual') return;
         try {
-          credentials = await manualAuthenticate();
-          account = await transport.preflight(credentials);
+          const credentials = await manualAuthenticate();
+          account = await terminal.wait(copy.checkingSession, async () => {
+            return transport.preflight(credentials);
+          });
         } catch (manualError) {
           await pauseError(manualError);
           continue;
@@ -261,8 +270,9 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
     if (!await ensureAccount()) return;
     const copy = SETUP_COPY[language];
     for (;;) {
-      terminal.screen([copy.findingAgents]);
-      const agents = await transport.discoverCustomAgents();
+      const agents = await terminal.wait(copy.findingAgents, async () => {
+        return transport.discoverCustomAgents();
+      });
       if (!agents.length) {
         const action = await terminal.choose(copy.noAgents, [
           { value: 'retry', label: copy.retry },
@@ -271,8 +281,14 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
           { value: 'back', label: copy.back },
         ] as const, { header: [copy.noAgentAccess] });
         if (action === 'retry') continue;
-        if (action === 'create') { await openUrl(AGENTS_URL); continue; }
-        if (action === 'manual') { await openUrl(MANUAL_ID_URL); continue; }
+        if (action === 'create') {
+          await terminal.wait(copy.createAgent, async () => openUrl(AGENTS_URL));
+          continue;
+        }
+        if (action === 'manual') {
+          await terminal.wait(copy.manualFallback, async () => openUrl(MANUAL_ID_URL));
+          continue;
+        }
         return;
       }
 
@@ -289,9 +305,30 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
       if (choice === undefined) return;
       const agent = agents[Number(choice)];
       if (!agent) continue;
-      const plan = await planConfigUpdate(agent, configPath);
+
+      const models = notionModelOptions(agents).sort((left, right) => {
+        if (left.slug === agent.modelSlug) return -1;
+        if (right.slug === agent.modelSlug) return 1;
+        return left.name.localeCompare(right.name);
+      });
+      const modelChoice = await terminal.choose(copy.modelsTitle, models.map((model, index) => ({
+        value: String(index),
+        label: model.name,
+        ...(model.slug === agent.modelSlug ? { description: copy.current } : {}),
+      })), { allowBack: true, header: [agent.name] });
+      if (modelChoice === undefined) return;
+      const model = models[Number(modelChoice)];
+      if (!model) continue;
+      const configuredAgent: DiscoveredNotionAgent = {
+        ...agent,
+        modelSlug: model.slug,
+        modelName: model.name,
+      };
+      const plan = await terminal.wait(copy.menu['select-agent'], async () => {
+        return planConfigUpdate(configuredAgent, configPath);
+      });
       if (!plan.changed) {
-        selectedAgent = agent;
+        selectedAgent = configuredAgent;
         terminal.screen([copy.configUnchanged]);
         await terminal.pause(copy.configUnchanged, copy.continue);
         return;
@@ -302,8 +339,8 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
       ];
       if (plan.exists && !await terminal.confirm(copy.configConfirm, copy, true, summary)) return;
       if (!plan.exists) terminal.screen(summary);
-      const saved = await writeConfigPlan(plan);
-      selectedAgent = agent;
+      const saved = await terminal.wait(copy.menu['select-agent'], async () => writeConfigPlan(plan));
+      selectedAgent = configuredAgent;
       terminal.screen([
         copy.configSaved,
         ...(saved.backupPath ? [`${copy.backupSaved}: ${saved.backupPath}`] : []),
@@ -315,9 +352,10 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
 
   const getApiKey = async (): Promise<void> => {
     const copy = SETUP_COPY[language];
-    const result = await ensureLocalApiKey(envPath);
-    const missing = await missingGitignoreEntries(gitignorePath);
-    let gitignoreUpdated = false;
+    const missing = await terminal.wait(copy.menu['api-key'], async () => {
+      await ensureLocalApiKey(envPath);
+      return missingGitignoreEntries(gitignorePath);
+    });
     if (missing.length && await terminal.confirm(
       copy.gitignoreConfirm,
       copy,
@@ -325,19 +363,7 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
       missing.map((entry) => `• ${entry}`),
     )) {
       await appendGitignoreEntries(missing, gitignorePath);
-      gitignoreUpdated = true;
     }
-    terminal.screen([
-      result.created ? copy.apiKeyCreated : copy.apiKeyExists,
-      `${copy.apiKeyMasked}: ${result.masked}`,
-      ...(gitignoreUpdated ? [copy.gitignoreUpdated] : []),
-      '',
-      copy.codexSnippet,
-      ...codexConfigSnippet().split('\n'),
-      '',
-      `${copy.nextStep}: npx nodex serve`,
-    ]);
-    await terminal.pause(copy.nextStep, copy.continue);
   };
 
   const verify = async (): Promise<void> => {
@@ -349,8 +375,9 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
       await terminal.pause(copy.connectFirst, copy.continue);
       return;
     }
-    terminal.screen([copy.findingAgents]);
-    const agents = await transport.discoverCustomAgents();
+    const agents = await terminal.wait(copy.findingAgents, async () => {
+      return transport.discoverCustomAgents();
+    });
     const diagnostics = diagnoseAgentBindings(config, agents);
     const selectedDiagnostic = diagnostics.find((item) => item.modelId === DEFAULT_MODEL_ID)
       ?? diagnostics[0];
@@ -368,29 +395,41 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
         : copy.modelSyncNotRequired;
     terminal.screen([copy.verifySafeOk, modelCheck]);
     if (!await terminal.confirm(`${copy.liveTestWarning}\n${copy.liveTestQuestion}`, copy, false)) return;
-    await runLiveTest(transport, binding, config.turnTimeoutMs);
+    await terminal.wait(copy.liveTestQuestion, async () => {
+      return runLiveTest(transport, binding, config.turnTimeoutMs);
+    });
     terminal.screen([copy.liveTestOk]);
     await terminal.pause(copy.liveTestOk, copy.continue);
   };
 
   try {
+    try {
+      account = await terminal.wait(SETUP_COPY[language].checkingSession, async () => {
+        return transport.preflight();
+      });
+    } catch {
+      account = undefined;
+    }
+
     for (;;) {
       const copy = SETUP_COPY[language];
-      const actions: SetupAction[] = [
-        'connect',
-        'select-agent',
-        'api-key',
-        'verify',
-        'prepare-agent',
-        'start-server',
-        'doctor',
-        'language',
-        'documentation',
-        'exit',
-      ];
+      const actions: SetupAction[] = account
+        ? [
+          'connect',
+          'select-agent',
+          'api-key',
+          'verify',
+          'prepare-agent',
+          'start-server',
+          'doctor',
+          'language',
+          'documentation',
+          'exit',
+        ]
+        : ['connect', 'language', 'documentation', 'exit'];
       const action = await terminal.choose(copy.mainMenu, actions.map((value) => ({
         value,
-        label: copy.menu[value],
+        label: value === 'connect' && account ? copy.changeAccount : copy.menu[value],
       })), {
         header: welcomeHeader(copy, options.version, account, selectedAgent),
         allowBack: true,
@@ -407,6 +446,7 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
         if (action === 'api-key') await getApiKey();
         if (action === 'verify') await verify();
         if (action === 'prepare-agent') {
+          await terminal.wait(copy.menu['prepare-agent'], () => Promise.resolve());
           terminal.screen([copy.prepareTitle, '', copy.prepareNotRequired]);
           await terminal.pause(copy.prepareTitle, copy.continue);
         }
@@ -417,11 +457,15 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
             await terminal.pause(copy.connectFirst, copy.continue);
             continue;
           }
-          await ensureLocalApiKey(envPath);
+          await terminal.wait(copy.menu['start-server'], async () => {
+            await ensureLocalApiKey(envPath);
+          });
           return 'serve';
         }
         if (action === 'doctor') {
-          const report = await doctorReport(configPath, transport);
+          const report = await terminal.wait(copy.menu.doctor, async () => {
+            return doctorReport(configPath, transport);
+          });
           terminal.screen([
             copy.doctorTitle,
             `${copy.account}: ${report.account.userEmail || report.account.userName}`,
@@ -432,21 +476,26 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
           await terminal.pause(copy.doctorTitle, copy.continue);
         }
         if (action === 'language') {
-          const next = await terminal.choose(copy.menu.language, [
-            { value: 'en', label: 'English' },
-            { value: 'ru', label: 'Русский' },
-          ], { initial: language === 'en' ? 0 : 1 });
+          const next = await terminal.choose(copy.menu.language, SUPPORTED_LANGUAGES.map((item) => ({
+            value: item.code,
+            label: item.name,
+          })), {
+            initial: Math.max(0, SUPPORTED_LANGUAGES.findIndex(({ code }) => code === language)),
+          });
           if (next) {
+            await terminal.wait(copy.menu.language, async () => {
+              await saveConsoleLanguage(next, settingsPath);
+            });
             language = next;
-            await saveConsoleLanguage(language, settingsPath);
           }
         }
         if (action === 'documentation') {
-          await openUrl(DOCUMENTATION_URL);
+          await terminal.wait(copy.menu.documentation, async () => openUrl(DOCUMENTATION_URL));
           terminal.screen([copy.docsOpened]);
           await terminal.pause(copy.docsOpened, copy.continue);
         }
         if (action === 'exit') {
+          await terminal.wait(copy.menu.exit, () => Promise.resolve());
           terminal.screen([copy.goodbye]);
           return 'exit';
         }
@@ -459,5 +508,7 @@ export async function runSetupWizard(options: SetupWizardOptions): Promise<Setup
     if (!(error instanceof SetupCancelledError)) throw error;
     terminal.screen([SETUP_COPY[language].cancelled]);
     return 'exit';
+  } finally {
+    terminal.close();
   }
 }
