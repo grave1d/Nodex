@@ -689,7 +689,8 @@ export class NodexCore {
     const queue = new AsyncQueue<CoreTurnEvent>();
     const abort = (): void => controller.abort('cancelled');
 
-    externalSignal?.addEventListener('abort', abort, { once: true });
+    if (externalSignal?.aborted) abort();
+    else externalSignal?.addEventListener('abort', abort, { once: true });
 
     const work = this.execute(
       request,
@@ -852,7 +853,8 @@ export class NodexCore {
       const timeout = setTimeout(() => controller.abort('timeout'), this.config.turnTimeoutMs);
       const abort = (): void => controller.abort('cancelled');
 
-      externalSignal.addEventListener('abort', abort, { once: true });
+      if (externalSignal.aborted) abort();
+      else externalSignal.addEventListener('abort', abort, { once: true });
 
       const allEvents: ProtocolEvent[] = [...localStatuses];
       let message = makeMessage(newSession, fullTools);
