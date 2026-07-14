@@ -324,6 +324,7 @@ export function buildServer(
   const models = new ModelRegistry(config, transport, images, embeddings);
   const core = new NodexCore(config, store, transport, app.log, files, images);
   const activeResponses = new Map<string, AbortController>();
+  const backgroundWork = new Set<Promise<unknown>>();
   // Read once at startup so authentication cannot change mid-request when the
   // parent process mutates its environment (for example, in an embedded server).
   const localApiKey = process.env['NODEX_API_KEY'];
@@ -431,6 +432,7 @@ export function buildServer(
 
   app.addHook('onClose', async () => {
     for (const controller of activeResponses.values()) controller.abort();
+    await Promise.allSettled(backgroundWork);
     await core.close();
   });
 
@@ -1010,7 +1012,11 @@ export function buildServer(
         requestId: request.id,
       });
       if (parsed.data.background) {
-        void work.catch(() => undefined);
+        backgroundWork.add(work);
+        void work.then(
+          () => backgroundWork.delete(work),
+          () => backgroundWork.delete(work),
+        );
         const response = store.getResponse(reservation.record.responseId, false) ?? reservation.record;
         return reply.code(202).send(responseState(response));
       }

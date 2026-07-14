@@ -6,6 +6,14 @@ This project uses semantic versioning while the public API stabilizes. During `0
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-07-14
+
+### Fixed
+
+- Graceful shutdown now waits for cancelled background responses before closing SQLite.
+
+## [0.1.23] - 2026-07-14
+
 ### Added
 
 - Release documentation and repository metadata.
@@ -14,17 +22,6 @@ This project uses semantic versioning while the public API stabilizes. During `0
 - GitHub Actions verification for Node.js 22 and 24 on Ubuntu and Windows.
 - Dependabot updates for npm dependencies and GitHub Actions.
 - The publishable npm package name `nodex-ai` while retaining the `nodex` CLI binary.
-
-### Fixed
-
-- Test isolation from a developer shell's `NODEX_API_KEY`.
-- README license and release-checklist text after adding Apache-2.0.
-- Clone-based CLI instructions that could resolve to an unrelated npm package.
-
-## [0.1.23] - 2026-07-14
-
-### Added
-
 - Local OpenAI-compatible bridge for connecting Notion Custom Agents to Codex.
 - Responses API support for Codex-native tool flows.
 - Function and custom/freeform tool call lifecycle support.
@@ -33,11 +30,18 @@ This project uses semantic versioning while the public API stabilizes. During `0
 - Interactive local dashboard for `nodex serve`.
 - Multilingual README documentation.
 
+### Fixed
+
+- Test isolation from a developer shell's `NODEX_API_KEY`.
+- README license and release-checklist text after adding Apache-2.0.
+- Clone-based CLI instructions that could resolve to an unrelated npm package.
+
 ### Security
 
 - Local bearer-token protection via `NODEX_API_KEY`.
 - Local-first default binding behavior.
 - Redacted diagnostic logging.
 
-[Unreleased]: https://github.com/grave1d/Nodex/compare/v0.1.23...HEAD
+[Unreleased]: https://github.com/grave1d/Nodex/compare/v0.1.24...HEAD
+[0.1.24]: https://github.com/grave1d/Nodex/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/grave1d/Nodex/releases/tag/v0.1.23
