@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+nodex.config.json
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+.nodex/
+credentials.json
+browser-profile/

@@ -1,0 +1,2 @@
+{"type":"patch-start","data":{"s":[]}}
+{"type":"patch","v":[{"o":"a","p":"/s/-","v":{"type":"agent-inference","value":[{"type":"text","content":"{\"type\":\"tool_call\",\"calls\":[{\"id\":\"call_patch\",\"name\":\"apply_patch\",\"input\":\"*** Begin Patch\\n*** End Patch\"}]}"}]}}]}

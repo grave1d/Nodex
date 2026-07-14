@@ -1,0 +1,2 @@
+{"type":"patch-start","data":{"s":[]}}
+{"type":"patch","v":[{"o":"a","p":"/s/-","v":{"type":"agent-inference","value":[{"type":"text","content":"{\"type\":\"status\",\"text\":\"fixture\",\"phase\":\"before_final\"}\\n{\"type\":\"final\",\"text\":\"done\"}"}]}}]}

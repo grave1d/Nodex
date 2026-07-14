@@ -1,0 +1,79 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8787,
+    "corsOrigins": []
+  },
+  "databasePath": ".nodex/nodex.sqlite",
+  "projectRoot": ".",
+  "http": {
+    "jsonBodyBytes": 2097152,
+    "maxInputItems": 256,
+    "maxTools": 128,
+    "maxMetadataKeys": 16
+  },
+  "models": {
+    "gpt-5.6-sol": {
+      "agentPageId": "00000000-0000-0000-0000-000000000000",
+      "agentName": "My Notion Agent",
+      "notionModel": "GPT-5.6 Sol",
+      "notionModelSlug": "orange-mousse",
+      "syncNotionModel": true,
+      "capabilities": {
+        "reasoningSummaries": true,
+        "functionCalling": true,
+        "imageInput": false,
+        "fileInput": false,
+        "imageGeneration": false,
+        "imageEdit": false
+      }
+    }
+  },
+  "transport": "notion",
+  "turnTimeoutMs": 300000,
+  "keepAliveMs": 15000,
+  "protocolRetries": 2,
+  "toolOutputLimitBytes": 10240,
+  "retention": {
+    "conversationsDays": 0,
+    "responsesDays": 30
+  },
+  "conversation": {
+    "maxBootstrapItems": 100
+  },
+  "envelope": {
+    "maxDepth": 3,
+    "maxEntries": 100,
+    "maxBytes": 8192
+  },
+  "files": {
+    "root": "~/.nodex/files",
+    "maxBytes": 20971520,
+    "allowedPurposes": ["assistants", "vision", "user_data", "batch"],
+    "retentionDays": 0
+  },
+  "images": {
+    "enabled": false,
+    "provider": "openai-compatible",
+    "baseUrl": "https://api.example.invalid/v1",
+    "apiKeyEnv": "NODEX_IMAGE_API_KEY",
+    "timeoutMs": 180000,
+    "maxInputImages": 8,
+    "maxInputBytes": 52428800,
+    "models": {}
+  },
+  "embeddings": {
+    "enabled": false,
+    "provider": "openai-compatible",
+    "baseUrl": "https://api.example.invalid/v1",
+    "apiKeyEnv": "NODEX_EMBEDDING_API_KEY",
+    "timeoutMs": 60000,
+    "maxInputCount": 128,
+    "maxInputBytes": 1048576,
+    "models": {}
+  },
+  "auth": {
+    "autoReauth": false
+  },
+  "verbose": true
+}
