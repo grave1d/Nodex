@@ -2,6 +2,8 @@
 
 First public release of Nodex — a local bridge that connects Notion Custom Agents to Codex through an OpenAI-compatible Responses API.
 
+The npm package is published as `nodex-ai`; the installed command remains `nodex`.
+
 ## Highlights
 
 - Use a Notion Custom Agent as the reasoning backend for Codex.
