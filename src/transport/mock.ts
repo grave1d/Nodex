@@ -1,10 +1,23 @@
 import { randomUUID } from 'node:crypto';
-import type { NotionTransport, PreflightInfo, TransportRequest, TransportTurn } from './types.js';
+import type { DiscoveredNotionAgent, NotionTransport, PreflightInfo, TransportRequest, TransportTurn } from './types.js';
 
 export class MockTransport implements NotionTransport {
   readonly attachmentCapabilities = { imageInput: true, fileInput: true };
   async preflight(): Promise<PreflightInfo> {
     return { userId: 'mock-user', userName: 'Mock User', userEmail: 'mock@example.invalid', workspaceId: 'mock-space', workspaceName: 'Mock Workspace', spaceViewId: 'mock-view' };
+  }
+
+  async discoverCustomAgents(): Promise<DiscoveredNotionAgent[]> {
+    return [{
+      name: 'Mock Agent',
+      workflowId: 'mock-workflow',
+      agentInstructionsPageId: 'mock-agent-page',
+      spaceId: 'mock-space',
+      spaceName: 'Mock Workspace',
+      modelSlug: 'mock-model',
+      modelName: 'Mock Model',
+      url: 'https://www.notion.so/agent/mock-workflow',
+    }];
   }
 
   async send(request: TransportRequest): Promise<TransportTurn> {

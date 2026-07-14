@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 const agentSchema = z
   .object({
-    agentPageId: z.string().min(1),
+    agentInstructionsPageId: z.string().min(1).optional(),
+    agentPageId: z.string().min(1).optional(),
     agentName: z.string().min(1),
     notionModel: z.string().min(1),
     notionModelSlug: z.string().min(1).optional(),
@@ -28,7 +29,15 @@ const agentSchema = z
         imageEdit: false,
       }),
   })
-  .strict();
+  .strict()
+  .refine((agent) => Boolean(agent.agentInstructionsPageId ?? agent.agentPageId), {
+    message: 'agentInstructionsPageId is required',
+    path: ['agentInstructionsPageId'],
+  })
+  .transform(({ agentPageId, ...agent }) => ({
+    ...agent,
+    agentInstructionsPageId: agent.agentInstructionsPageId ?? agentPageId ?? '',
+  }));
 
 export const configSchema = z
   .object({
@@ -197,7 +206,21 @@ function resolveUserPath(path: string): string {
   return resolve(path);
 }
 
-export async function loadConfig(path = process.env['NODEX_CONFIG'] ?? 'nodex.config.json'): Promise<NodexConfig> {
+export const LEGACY_AGENT_PAGE_ID_WARNING = 'agentPageId is deprecated. Use agentInstructionsPageId.';
+
+export function configWarnings(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const models = (raw as Record<string, unknown>)['models'];
+  if (!models || typeof models !== 'object') return [];
+  return Object.values(models as Record<string, unknown>).some((model) => (
+    Boolean(model && typeof model === 'object' && 'agentPageId' in model)
+  )) ? [LEGACY_AGENT_PAGE_ID_WARNING] : [];
+}
+
+export async function loadConfig(
+  path = process.env['NODEX_CONFIG'] ?? 'nodex.config.json',
+  options: { onWarning?: (message: string) => void } = {},
+): Promise<NodexConfig> {
   let raw: unknown = {};
 
   try {
@@ -207,6 +230,8 @@ export async function loadConfig(path = process.env['NODEX_CONFIG'] ?? 'nodex.co
       throw error;
     }
   }
+
+  for (const warning of configWarnings(raw)) options.onWarning?.(warning);
 
   const parsed = configSchema.parse(raw);
   let models = parsed.models;

@@ -14,7 +14,7 @@
   },
   "models": {
     "gpt-5.6-sol": {
-      "agentPageId": "00000000-0000-0000-0000-000000000000",
+      "agentInstructionsPageId": "00000000-0000-0000-0000-000000000000",
       "agentName": "My Notion Agent",
       "notionModel": "GPT-5.6 Sol",
       "notionModelSlug": "orange-mousse",

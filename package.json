@@ -1,6 +1,6 @@
 {
   "name": "nodex-ai",
-  "version": "0.1.24",
+  "version": "0.2.0",
   "description": "Local OpenAI-compatible bridge that connects Notion Custom Agents to Codex.",
   "type": "module",
   "bin": {
@@ -17,11 +17,13 @@
   },
   "files": [
     "dist",
-    "docs/i18n",
+    "docs",
     "README.md",
     "LICENSE",
     "SECURITY.md",
+    "CONTRIBUTING.md",
     "CHANGELOG.md",
+    "RELEASE_NOTES_v0.2.0.md",
     "nodex.config.example.json"
   ],
   "engines": {
@@ -82,5 +84,9 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
     "vitest": "^4.0.13"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "test"
   }
 }
