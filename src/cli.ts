@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import pino from 'pino';
@@ -26,6 +27,10 @@ import { SessionStore } from './session/store.js';
 import { buildServer, serverLoggerOptions } from './server.js';
 import { generateProtocolPreamble } from './protocol/preamble.js';
 import { assertCompleteTurn, parseProtocol } from './protocol/parser.js';
+import { cliHelp, resolveCliInvocation, shouldUseSetupWizard } from './cli-routing.js';
+import { diagnosticLines, diagnoseAgentBindings } from './setup/diagnostics.js';
+import { loadLocalEnv } from './setup/files.js';
+import { runSetupWizard } from './setup/wizard.js';
 
 async function collect(chunks: AsyncIterable<string>): Promise<string> { let text = ''; for await (const chunk of chunks) text += chunk; return text; }
 async function preflightWithRetry(transport: InternalNotionTransport, credentials?: Credentials) {
@@ -45,27 +50,36 @@ function assertLiveFinal(raw: string, marker: string): void {
 }
 
 async function doctor(live: boolean): Promise<void> {
-  const config = await loadConfig();
+  await loadLocalEnv();
+  const config = await loadConfig(undefined, { onWarning: (warning) => { console.warn(warning); } });
   const transport = new InternalNotionTransport();
   const info = await preflightWithRetry(transport);
-  console.log(`OK: ${info.userName || info.userEmail} — ${info.workspaceName} (${info.workspaceId})`);
+  console.log(`OK: ${info.userName || info.userEmail} — ${info.workspaceName}`);
+  const agents = await transport.discoverCustomAgents();
+  const diagnostics = diagnoseAgentBindings(config, agents);
+  for (const line of diagnosticLines(diagnostics)) console.log(line);
+  if (!diagnostics.length || diagnostics.some((diagnostic) => diagnostic.kind !== 'ok')) {
+    throw new Error('Doctor found configuration errors. Run: nodex setup');
+  }
   if (live) {
+    console.log('LIVE: this creates a Notion thread and may use Notion AI quota.');
     const binding = Object.values(config.models)[0];
     if (!binding) throw new Error('No models configured for live test');
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), config.turnTimeoutMs);
     try {
       const threadId = randomUUID();
-      const first = await transport.send({ threadId, newThread: true, state: '{}', agent: binding, signal: controller.signal, attachments: [], message: `${generateProtocolPreamble()}\n\nTOOLS hash=doctor []\nTOOL_CHOICE "none"\nINPUT\nОтветь final с текстом preflight-1.` });
-      const firstText = await collect(first.chunks); assertLiveFinal(firstText, 'preflight-1');
-      const second = await transport.send({ threadId, newThread: false, state: first.nextState, agent: binding, signal: controller.signal, attachments: [], message: 'TOOLS hash=doctor\nTOOL_CHOICE "none"\nINPUT\nОтветь final с текстом preflight-2.' });
-      const secondText = await collect(second.chunks); assertLiveFinal(secondText, 'preflight-2');
+      const first = await transport.send({ threadId, newThread: true, state: '{}', agent: binding, signal: controller.signal, attachments: [], message: `${generateProtocolPreamble()}\n\nTOOLS hash=doctor []\nTOOL_CHOICE "none"\nINPUT\nNodex connection test. Reply with OK.` });
+      const firstText = await collect(first.chunks); assertLiveFinal(firstText, 'OK');
+      const second = await transport.send({ threadId, newThread: false, state: first.nextState, agent: binding, signal: controller.signal, attachments: [], message: 'TOOLS hash=doctor\nTOOL_CHOICE "none"\nINPUT\nNodex connection test. Reply with OK.' });
+      const secondText = await collect(second.chunks); assertLiveFinal(secondText, 'OK');
       console.log(`LIVE OK: thread ${threadId} created and continued`);
     } finally { clearTimeout(timer); }
   }
 }
 
 async function serve(args: string[]): Promise<void> {
-  const config = await loadConfig();
+  await loadLocalEnv();
+  const config = await loadConfig(undefined, { onWarning: (warning) => { console.warn(warning); } });
   const interactive = shouldUseInteractiveConsole({
     args,
     env: process.env,
@@ -200,16 +214,50 @@ async function serve(args: string[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const [command = 'serve', ...args] = process.argv.slice(2);
-  if (command === 'serve') return serve(args);
-  if (command === 'doctor') return doctor(args.includes('--live'));
-  if (command === 'auth') {
+  const version = await packageVersion();
+  const invocation = resolveCliInvocation(process.argv.slice(2), {
+    env: process.env,
+    stdinIsTTY: process.stdin.isTTY,
+    stdoutIsTTY: process.stdout.isTTY,
+  });
+  if (invocation.command === 'help') {
+    console.log(cliHelp(version));
+    return;
+  }
+  if (invocation.command === 'version') {
+    console.log(version);
+    return;
+  }
+  if (invocation.command === 'setup') {
+    if (!shouldUseSetupWizard({
+      env: process.env,
+      stdinIsTTY: process.stdin.isTTY,
+      stdoutIsTTY: process.stdout.isTTY,
+    })) {
+      console.log(`Interactive setup requires a TTY.\n\n${cliHelp(version)}`);
+      return;
+    }
+    const result = await runSetupWizard({ version });
+    if (result === 'serve') return serve([]);
+    return;
+  }
+  if (invocation.command === 'serve') return serve(invocation.args);
+  if (invocation.command === 'doctor') return doctor(invocation.args.includes('--live'));
+  if (invocation.command === 'auth') {
+    const args = invocation.args;
     const credentials = args.includes('--manual') ? await manualAuth() : await browserAuth();
     const info = await preflightWithRetry(new InternalNotionTransport(), credentials);
     console.log(`OK: ${info.userName || info.userEmail} — ${info.workspaceName}`);
     return;
   }
-  throw new Error(`Unknown command: ${command}. Use serve, auth, or doctor.`);
+  throw new Error(`Unknown command: ${invocation.args[0] ?? ''}. Run: nodex --help`);
+}
+
+async function packageVersion(): Promise<string> {
+  const source = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
+    version?: unknown;
+  };
+  return typeof source.version === 'string' ? source.version : '0.0.0';
 }
 
 main().catch((error: unknown) => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; });

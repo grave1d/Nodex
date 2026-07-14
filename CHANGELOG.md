@@ -6,6 +6,33 @@ This project uses semantic versioning while the public API stabilizes. During `0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-14
+
+### Added
+
+- Interactive Russian/English setup wizard for no-argument TTY launches and `nodex setup`.
+- Persistent dedicated-browser Notion sign-in with clear progress and masked credential status.
+- Automatic Notion Custom Agent discovery without inference, test messages, or thread creation.
+- Canonical `agentInstructionsPageId` bindings and workflow-ID diagnostics in Doctor.
+- Safe config generation/migration with confirmation and timestamped backups.
+- Strong local API-key generation, `.env` loading, `.gitignore` guidance, and Codex provider output.
+- Explicit safe connection verification and opt-in live testing with quota warning.
+- Concise quickstart documentation, 15 synchronized translations, and advanced guides.
+
+### Changed
+
+- `nodex` without arguments opens setup only in an interactive TTY; non-interactive launches print plain help.
+- New configurations use `agentInstructionsPageId`; `agentPageId` remains a deprecated compatibility alias.
+- Browser authentication reuses only `~/.nodex/browser-profile` and never reads the user's main browser profile.
+- Package documentation and metadata now target the 0.2.0 setup-first experience.
+
+### Security
+
+- Complete local API keys and Notion credentials are never printed by setup.
+- Manual credential input is hidden.
+- Canonical agent IDs are redacted from structured logs.
+- The npm file allowlist includes documentation while excluding local secrets, profiles, databases, logs, and captures.
+
 ## [0.1.24] - 2026-07-14
 
 ### Fixed
@@ -42,6 +69,7 @@ This project uses semantic versioning while the public API stabilizes. During `0
 - Local-first default binding behavior.
 - Redacted diagnostic logging.
 
-[Unreleased]: https://github.com/grave1d/Nodex/compare/v0.1.24...HEAD
+[Unreleased]: https://github.com/grave1d/Nodex/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/grave1d/Nodex/compare/v0.1.24...v0.2.0
 [0.1.24]: https://github.com/grave1d/Nodex/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/grave1d/Nodex/releases/tag/v0.1.23

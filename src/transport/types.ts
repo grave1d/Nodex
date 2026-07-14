@@ -2,7 +2,9 @@ import type { Credentials } from '../auth/credentials.js';
 import type { Readable } from 'node:stream';
 
 export interface AgentBinding {
-  agentPageId: string;
+  agentInstructionsPageId?: string | undefined;
+  /** Legacy alias accepted for backward compatibility. */
+  agentPageId?: string | undefined;
   agentName: string;
   notionModel: string;
   notionModelSlug?: string | undefined;
@@ -15,6 +17,16 @@ export interface AgentBinding {
     imageGeneration: boolean;
     imageEdit: boolean;
   };
+}
+export interface DiscoveredNotionAgent {
+  name: string;
+  workflowId: string;
+  agentInstructionsPageId: string;
+  spaceId: string;
+  spaceName?: string;
+  modelSlug?: string;
+  modelName?: string;
+  url?: string;
 }
 export interface PreflightInfo { userId: string; userName: string; userEmail: string; workspaceId: string; workspaceName: string; spaceViewId: string }
 export interface TransportAttachment {
@@ -42,5 +54,12 @@ export interface TransportTurn { chunks: AsyncIterable<string>; nextState: strin
 export interface NotionTransport {
   readonly attachmentCapabilities: { imageInput: boolean; fileInput: boolean };
   preflight(credentials?: Credentials): Promise<PreflightInfo>;
+  discoverCustomAgents?(): Promise<DiscoveredNotionAgent[]>;
   send(request: TransportRequest): Promise<TransportTurn>;
+}
+
+export function bindingInstructionsPageId(agent: AgentBinding): string {
+  const id = agent.agentInstructionsPageId ?? agent.agentPageId;
+  if (!id) throw new Error('Agent binding requires agentInstructionsPageId');
+  return id;
 }

@@ -281,6 +281,7 @@ export function serverLoggerOptions(config: NodexConfig): LoggerOptions {
         'headers.cookie',
         '*.token_v2',
         '*.notion_browser_id',
+        '*.agentInstructionsPageId',
         '*.agentPageId',
         '*.apiKey',
         '*.b64_json',

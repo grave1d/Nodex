@@ -3,6 +3,8 @@ dist/
 coverage/
 .env
 nodex.config.json
+nodex.config.local.json
+*.har
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

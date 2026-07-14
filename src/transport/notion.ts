@@ -6,7 +6,15 @@ import type { Credentials } from '../auth/credentials.js';
 import { loadCredentials } from '../auth/credentials.js';
 import { NodexError, parseRetryAfter } from '../errors.js';
 import { KeyedMutex } from '../session/mutex.js';
-import type { AgentBinding, NotionTransport, PreflightInfo, TransportRequest, TransportTurn } from './types.js';
+import {
+  bindingInstructionsPageId,
+  type AgentBinding,
+  type DiscoveredNotionAgent,
+  type NotionTransport,
+  type PreflightInfo,
+  type TransportRequest,
+  type TransportTurn,
+} from './types.js';
 
 const BASE_URL = 'https://www.notion.so/api/v3';
 let addressCursor = 0;
@@ -48,6 +56,9 @@ const KNOWN_MODEL_SLUGS: Readonly<Record<string, string>> = {
   'GPT-5.6 Sol': 'orange-mousse',
   'orange-mousse': 'orange-mousse',
 };
+const KNOWN_MODEL_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(KNOWN_MODEL_SLUGS).filter(([name, slug]) => name !== slug).map(([name, slug]) => [slug, name]),
+);
 
 interface Account extends PreflightInfo { credentials: Credentials }
 interface ThreadState { configId: string; contextId: string; originalDatetime: string; notionModel: string; updatedConfigIds: string[] }
@@ -110,17 +121,94 @@ function contextValue(account: Account, agent: AgentBinding, originalDatetime: s
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, userName: account.userName, userId: account.userId,
     userEmail: account.userEmail, spaceName: account.workspaceName, spaceId: account.workspaceId,
     spaceViewId: account.spaceViewId, currentDatetime: originalDatetime, surface: 'custom_agent', workflowId,
-    agentName: agent.agentName, context_page_id: agent.agentPageId,
+    agentName: agent.agentName, context_page_id: bindingInstructionsPageId(agent),
   };
+}
+
+function textValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (Array.isArray(value)) {
+    const joined = value.map(textValue).filter((part): part is string => Boolean(part)).join('');
+    return joined || undefined;
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  for (const key of ['name', 'title', 'displayName', 'display_name', 'plain_text', 'text', 'content']) {
+    const found = textValue(record[key]);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function workflowRecords(syncResponse: unknown): Record<string, unknown> {
+  if (!syncResponse || typeof syncResponse !== 'object') return {};
+  const recordMap = (syncResponse as { recordMap?: unknown }).recordMap;
+  if (!recordMap || typeof recordMap !== 'object') return {};
+  const workflows = (recordMap as Record<string, unknown>)['workflow'];
+  return workflows && typeof workflows === 'object' ? workflows as Record<string, unknown> : {};
+}
+
+export function normalizeNotionId(value: string): string {
+  return value.replaceAll('-', '').toLowerCase();
+}
+
+export function sameNotionId(left: string, right: string): boolean {
+  return normalizeNotionId(left) === normalizeNotionId(right);
+}
+
+export function discoveredAgentsFromRecords(
+  syncResponse: unknown,
+  workflowIds: readonly string[],
+  space: { id: string; name?: string },
+): DiscoveredNotionAgent[] {
+  const workflows = workflowRecords(syncResponse);
+  const result: DiscoveredNotionAgent[] = [];
+
+  for (const workflowId of workflowIds) {
+    const entry = Object.entries(workflows).find(([id]) => sameNotionId(id, workflowId));
+    if (!entry) continue;
+    const value = unwrap(entry[1]);
+    const data = value['data'];
+    const details = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+    const instructions = details['instructions'];
+    const instructionsPageId = instructions && typeof instructions === 'object'
+      ? (instructions as Record<string, unknown>)['id']
+      : undefined;
+    if (typeof instructionsPageId !== 'string' || !instructionsPageId) continue;
+
+    const model = details['model'];
+    const modelRecord = model && typeof model === 'object' ? model as Record<string, unknown> : {};
+    const modelSlug = typeof modelRecord['type'] === 'string' && modelRecord['type']
+      ? modelRecord['type']
+      : undefined;
+    const modelName = textValue(modelRecord['displayName'])
+      ?? textValue(modelRecord['name'])
+      ?? (modelSlug ? KNOWN_MODEL_NAMES[modelSlug] : undefined);
+    const name = textValue(details['name'])
+      ?? textValue(details['title'])
+      ?? textValue(value['name'])
+      ?? textValue(value['title'])
+      ?? 'Custom Agent';
+    const resolvedWorkflowId = entry[0];
+
+    result.push({
+      name,
+      workflowId: resolvedWorkflowId,
+      agentInstructionsPageId: instructionsPageId,
+      spaceId: space.id,
+      ...(space.name ? { spaceName: space.name } : {}),
+      ...(modelSlug ? { modelSlug } : {}),
+      ...(modelName ? { modelName } : {}),
+      url: `https://app.notion.com/agent/${normalizeNotionId(resolvedWorkflowId)}`,
+    });
+  }
+
+  return result;
 }
 
 export function workflowPageMap(syncResponse: unknown): Map<string, string> {
   const result = new Map<string, string>();
-  if (!syncResponse || typeof syncResponse !== 'object') return result;
-  const recordMap = (syncResponse as { recordMap?: unknown }).recordMap;
-  const workflows = recordMap && typeof recordMap === 'object' ? (recordMap as Record<string, unknown>)['workflow'] : undefined;
-  if (!workflows || typeof workflows !== 'object') return result;
-  for (const [workflowId, raw] of Object.entries(workflows)) {
+  for (const [workflowId, raw] of Object.entries(workflowRecords(syncResponse))) {
     const value = unwrap(raw); const data = value['data'];
     const instructions = data && typeof data === 'object' ? (data as Record<string, unknown>)['instructions'] : undefined;
     const pageId = instructions && typeof instructions === 'object' ? (instructions as Record<string, unknown>)['id'] : undefined;
@@ -131,14 +219,7 @@ export function workflowPageMap(syncResponse: unknown): Map<string, string> {
 
 export function workflowModelMap(syncResponse: unknown): Map<string, string> {
   const result = new Map<string, string>();
-  if (!syncResponse || typeof syncResponse !== 'object') return result;
-  const recordMap = (syncResponse as { recordMap?: unknown }).recordMap;
-  const workflows = recordMap && typeof recordMap === 'object'
-    ? (recordMap as Record<string, unknown>)['workflow']
-    : undefined;
-  if (!workflows || typeof workflows !== 'object') return result;
-
-  for (const [workflowId, raw] of Object.entries(workflows)) {
+  for (const [workflowId, raw] of Object.entries(workflowRecords(syncResponse))) {
     const value = unwrap(raw);
     const data = value['data'];
     const model = data && typeof data === 'object'
@@ -323,20 +404,61 @@ export class InternalNotionTransport implements NotionTransport {
     return response.json();
   }
 
-  private async workflowId(agent: AgentBinding): Promise<string> {
-    const cached = this.workflows.get(agent.agentPageId);
-    if (cached) return cached;
+  private async syncCustomAgentRecords(): Promise<{ ids: string[]; sync: unknown }> {
     const account = this.account;
     if (!account) throw new NodexError('auth', 'Notion preflight unavailable. Run: nodex auth');
     const customAgents = await this.postJson('getCustomAgents', { spaceId: account.workspaceId });
-    const idsRaw = customAgents && typeof customAgents === 'object' ? (customAgents as Record<string, unknown>)['agentIds'] : undefined;
-    const ids = Array.isArray(idsRaw) ? idsRaw.filter((id): id is string => typeof id === 'string') : [];
-    const sync = await this.postJson('syncRecordValuesMain', { requests: ids.map((id) => ({ pointer: { table: 'workflow', id, spaceId: account.workspaceId }, version: -1 })) });
+    const idsRaw = customAgents && typeof customAgents === 'object'
+      ? (customAgents as Record<string, unknown>)['agentIds']
+      : undefined;
+    const ids = Array.isArray(idsRaw)
+      ? idsRaw.filter((id): id is string => typeof id === 'string' && Boolean(id))
+      : [];
+    if (!ids.length) return { ids, sync: { recordMap: { workflow: {} } } };
+    const sync = await this.postJson('syncRecordValuesMain', {
+      requests: ids.map((id) => ({
+        pointer: { table: 'workflow', id, spaceId: account.workspaceId },
+        version: -1,
+      })),
+    });
     for (const [pageId, workflowId] of workflowPageMap(sync)) this.workflows.set(pageId, workflowId);
     for (const [workflowId, model] of workflowModelMap(sync)) this.workflowModels.set(workflowId, model);
-    const resolved = this.workflows.get(agent.agentPageId);
-    if (!resolved) throw new NodexError('upstream_protocol', `Custom Agent not found for agentPageId: ${agent.agentPageId}`);
-    return resolved;
+    return { ids, sync };
+  }
+
+  async discoverCustomAgents(): Promise<DiscoveredNotionAgent[]> {
+    if (!this.account) await this.preflight();
+    const account = this.account;
+    if (!account) throw new NodexError('auth', 'Notion preflight unavailable. Run: nodex auth');
+    const { ids, sync } = await this.syncCustomAgentRecords();
+    return discoveredAgentsFromRecords(sync, ids, {
+      id: account.workspaceId,
+      ...(account.workspaceName ? { name: account.workspaceName } : {}),
+    });
+  }
+
+  private async workflowId(agent: AgentBinding): Promise<string> {
+    const instructionsPageId = bindingInstructionsPageId(agent);
+    const cached = [...this.workflows.entries()].find(([pageId]) => sameNotionId(pageId, instructionsPageId))?.[1];
+    if (cached) return cached;
+    const account = this.account;
+    if (!account) throw new NodexError('auth', 'Notion preflight unavailable. Run: nodex auth');
+    const { ids, sync } = await this.syncCustomAgentRecords();
+    const resolved = [...this.workflows.entries()]
+      .find(([pageId]) => sameNotionId(pageId, instructionsPageId))?.[1];
+    if (resolved) return resolved;
+    const agents = discoveredAgentsFromRecords(sync, ids, { id: account.workspaceId });
+    const workflowMatch = agents.find((candidate) => sameNotionId(candidate.workflowId, instructionsPageId));
+    if (workflowMatch) {
+      throw new NodexError(
+        'upstream_protocol',
+        `Configured ID is a workflowId. Use agentInstructionsPageId: ${workflowMatch.agentInstructionsPageId}`,
+      );
+    }
+    throw new NodexError(
+      'upstream_protocol',
+      `Custom Agent not found for agentInstructionsPageId: ${instructionsPageId}`,
+    );
   }
 
   private async ensureWorkflowModel(workflowId: string, agent: AgentBinding): Promise<void> {

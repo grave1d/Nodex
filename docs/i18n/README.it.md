@@ -1,136 +1,38 @@
 # Nodex
 
-> Usa il tuo Notion Custom Agent come cervello di Codex.
+> Il tuo agente Notion, ovunque funzionino i modelli OpenAI.
 
-[![CI](https://github.com/grave1d/Nodex/actions/workflows/ci.yml/badge.svg)](https://github.com/grave1d/Nodex/actions/workflows/ci.yml) [![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org/) [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)](https://www.typescriptlang.org/) [![API](https://img.shields.io/badge/API-OpenAI%20Responses-000000)](https://platform.openai.com/docs/api-reference/responses) [![Tools](https://img.shields.io/badge/tools-local%20execution-blue)](#security-notes) [![Notion](https://img.shields.io/badge/Notion-Custom%20Agent-black)](https://www.notion.so/product/ai)
-
-**npm package:** `nodex-ai` · **installed CLI command:** `nodex`
+[![npm](https://img.shields.io/npm/v/nodex-ai)](https://www.npmjs.com/package/nodex-ai) [![CI](https://github.com/grave1d/Nodex/actions/workflows/ci.yml/badge.svg)](https://github.com/grave1d/Nodex/actions/workflows/ci.yml) [![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org/) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](../../LICENSE)
 
 **Languages:** 🇬🇧 [English](../../README.md) · 🇨🇳 [中文](README.zh-CN.md) · 🇮🇳 [हिन्दी](README.hi.md) · 🇪🇸 [Español](README.es.md) · 🇫🇷 [Français](README.fr.md) · 🇸🇦 [العربية](README.ar.md) · 🇧🇩 [বাংলা](README.bn.md) · 🇧🇷 [Português](README.pt-BR.md) · 🇷🇺 [Русский](README.ru.md) · 🇵🇰 [اردو](README.ur.md) · 🇩🇪 [Deutsch](README.de.md) · 🇯🇵 [日本語](README.ja.md) · 🇮🇹 [Italiano](README.it.md) · 🇺🇦 [Українська](README.uk.md) · 🇵🇱 [Polski](README.pl.md) · 🇷🇸 [Српски](README.sr.md)
 
----
+Nodex collega un Notion Custom Agent a Codex tramite un'API locale compatibile con OpenAI. L'agente resta in Notion; file e strumenti restano sul tuo computer.
 
-Nodex collega il tuo Notion Custom Agent a Codex tramite una Responses API locale compatibile con OpenAI. Agente, modello, persona, istruzioni e conoscenza restano in Notion. Codex resta il workspace locale dove si eseguono file, comandi shell, patch e strumenti.
+## Inizia in un minuto
 
-**Niente MCP. Nessuna shell remota. Nodex non esegue strumenti.** Codex executes tools on your machine; Nodex only bridges requests, responses, and tool-call state.
+```bash
+npm install nodex-ai
+npx nodex
+```
 
-> [!WARNING]
-> Nodex uses Notion's private `runInferenceTranscript` API. It can change without notice. Use your own account only, keep credentials private, and never commit cookies, HAR captures, tokens, logs, or local databases.
-
-## Che cos’è Nodex?
-
-Nodex è un bridge locale tra Notion Custom Agent e Codex. Crea un agente AI in Notion, scegli il modello, scrivi istruzioni, collega Notion a Nodex e configura Codex per usare Nodex come provider API custom.
-
-## Perché Nodex?
-
-- **Notion becomes the brain.** Agent persona, prompt, model selection, and knowledge live in Notion.
-- **Codex stays the hands.** File edits, shell commands, patches, and tool execution still happen locally through Codex.
-- **Native Codex flow.** Responses API items, function calls, custom/freeform tools, call outputs, commentary, and final answers are mapped into the Codex workflow.
-- **No MCP setup.** Nodex exposes a local OpenAI-compatible API, so Codex can talk to it like to a model provider.
-- **Local-first by default.** The bridge binds to `127.0.0.1`, uses a local API key, and stores response/conversation state locally.
-
-## Come funziona
+La procedura guidata apre l'accesso a Notion, trova i Custom Agents, crea config e API key locali e mostra il provider Codex pronto.
 
 ```text
-Codex / OpenAI-compatible client
-        │
-        │  POST /v1/responses
-        ▼
-Nodex on 127.0.0.1
-        │
-        │  Notion private agent protocol
-        ▼
-Notion Custom Agent
-        │
-        │  tool call / final answer
-        ▼
-Nodex maps events back to Responses API items
-        │
-        ▼
-Codex executes tools locally on your computer
+Installa Nodex.
+Collega Notion.
+Scegli il tuo agente.
+Usalo da Codex.
 ```
 
-Nodex does not run tools. It serializes the conversation, talks to the Notion Custom Agent, maps Notion protocol events to OpenAI-compatible Responses items, and gives Codex the tool calls to execute locally.
-
-## Requisiti
-
-- Node.js 20 or newer
-- A Notion account with access to a Custom Agent
-- Chrome or Chromium for the recommended browser login flow
-- Codex if you want the native Codex experience
-
-## Avvio rapido
-
-### Windows PowerShell
-
-```powershell
-git clone https://github.com/grave1d/Nodex.git
-Set-Location Nodex
-npm install
-Copy-Item nodex.config.example.json nodex.config.json
-npm run build
-node dist/cli.js auth
-```
-
-### macOS / Linux
+Per gli avvii successivi:
 
 ```bash
-git clone https://github.com/grave1d/Nodex.git
-cd Nodex
-npm install
-cp nodex.config.example.json nodex.config.json
-npm run build
-node dist/cli.js auth
+npx nodex serve
 ```
 
-## Configure your Notion agent binding
+## Usa con Codex
 
-Open `nodex.config.json` and add a model binding. `agentPageId` comes from the URL of your Notion Custom Agent. The public model name, for example `codex-notion-agent`, is the name you will use in Codex.
-
-```json
-{
-  "models": {
-    "codex-notion-agent": {
-      "agentPageId": "00000000-0000-0000-0000-000000000000",
-      "agentName": "My Notion Agent",
-      "notionModel": "GPT-5.6 Sol",
-      "notionModelSlug": "orange-mousse",
-      "syncNotionModel": true
-    }
-  }
-}
-```
-
-## Start the bridge
-
-Use a local random API key. The same value must be available in the terminal where you launch Codex.
-
-### Windows PowerShell
-
-```powershell
-$env:NODEX_API_KEY = "replace-with-a-local-random-value"
-node dist/cli.js serve
-```
-
-### macOS / Linux
-
-```bash
-export NODEX_API_KEY="replace-with-a-local-random-value"
-node dist/cli.js serve
-```
-
-## Verify access
-
-```bash
-node dist/cli.js doctor
-node dist/cli.js doctor --live
-```
-
-`node dist/cli.js doctor` checks local config and credentials. `node dist/cli.js doctor --live` creates a real Notion thread and consumes Notion AI quota.
-
-## Collegare Codex
-
-Add a custom provider to your user-level `~/.codex/config.toml` (`$HOME/.codex/config.toml` on Windows). Project-local Codex config should not define `model_providers`.
+Aggiungi il frammento mostrato al tuo `~/.codex/config.toml` utente:
 
 ```toml
 model = "codex-notion-agent"
@@ -144,103 +46,33 @@ wire_api = "responses"
 requires_openai_auth = false
 ```
 
-Open a new terminal with the same `NODEX_API_KEY`, enter your project, and start `codex`. The `model` value must match a key under `models` in `nodex.config.json`.
+Il server legge il `.env` generato. Esporta lo stesso `NODEX_API_KEY` nella shell che avvia Codex.
 
-## Model binding
+## Cosa offre Nodex
 
-Each public model ID maps to one Notion Custom Agent.
+- `/v1/responses` compatibile OpenAI con JSON e streaming.
+- Ricerca automatica degli agenti e del corretto internal instructions page ID.
+- API key locale robusta e archiviazione sicura in locale.
+- Sincronizzazione del modello Notion e tool-call flow compatibile con Codex.
+- Compatibilità con le vecchie configurazioni `agentPageId`.
 
-| Field | Meaning |
-| --- | --- |
-| `agentPageId` | Private Notion Custom Agent page ID. Never expose it in `/v1/models`. |
-| `agentName` | Local display name. |
-| `notionModel` | Model label sent to the Notion inference transcript. |
-| `notionModelSlug` | Internal Notion model type value. Example: `orange-mousse`. |
-| `syncNotionModel` | When `true`, Nodex can save/publish the Notion agent model setting before inference. |
-| `capabilities` | Advertised feature flags for the binding. |
+## Dove vivono i dati
 
-## Supported API surface
+La configurazione del progetto è in `nodex.config.json`, il secret in `.env`. Le credentials Notion e il profilo browser persistente dedicato sono in `~/.nodex`; Nodex non legge il profilo browser principale.
 
-| Area | Status |
-| --- | --- |
-| Responses JSON and SSE | Supported primary path, including Responses Lite tool catalogs. |
-| Function and custom/freeform tools | Supported through the call/output lifecycle. |
-| Codex commentary and final phases | Mapped to native assistant message items. |
-| Stored responses and `previous_response_id` | Supported subset with local persistence. |
-| Conversations and Files APIs | Local CRUD and storage. |
-| Chat Completions | Legacy compatibility; Responses is the recommended path. |
-| Images and embeddings | Optional OpenAI-compatible providers, separate from Notion. |
-| Notion image/file input | Not advertised by the built-in Notion transport. |
+## Importante
 
-### Main endpoints
+Nodex usa un'API privata e non ufficiale di Notion. Modifiche interne di Notion possono interromperlo. Il progetto non è affiliato con Notion o OpenAI. Mantieni il server su `127.0.0.1` e non pubblicare credentials, `.env`, config locale, dati browser, logs, HAR o SQLite.
 
-- `POST /v1/responses`
-- `GET /v1/responses/{id}` and `POST /v1/responses/{id}/cancel`
-- `POST /v1/chat/completions`
-- `/v1/conversations` and `/v1/conversations/{id}/items`
-- `/v1/files` and `/v1/files/{id}/content`
-- `POST /v1/images/generations` and `POST /v1/images/edits`
-- `POST /v1/embeddings`
-- `GET /v1/models` and `GET /v1/models/{id}`
-- `GET /healthz` and `GET /healthz?deep=1`
+## Avanzato
 
-## Interactive console
+- [Configurazione manuale](../advanced/manual-config.md)
+- [Workflow ID e instructions page ID](../advanced/notion-agent-id.md)
+- [Risoluzione dei problemi](../advanced/troubleshooting.md)
+- [Modello di sicurezza](../advanced/security.md)
 
-In a real TTY, `node dist/cli.js serve` shows a compact localized dashboard with server health, API URLs, and active model bindings.
-
-- `H` or `?` — help
-- `R` — run a deep Notion health check
-- `L` — switch UI language
-- `C` — redraw
-- `Q` or `Ctrl+C` — graceful shutdown
-
-<a id="security-notes"></a>
-
-## Sicurezza
-
-- Keep `NODEX_HOST=127.0.0.1` unless you fully understand the risk of exposing the bridge on a network.
-- Use a strong local `NODEX_API_KEY` and launch Codex with the same value.
-- Do not commit `nodex.config.json`, `.env`, credentials, cookies, SQLite files, HAR captures, or raw upstream logs.
-- The browser auth flow stores Notion credentials locally under `~/.nodex/credentials.json`.
-- Use `node dist/cli.js auth --manual` if browser automation cannot pass your Notion login or SSO flow.
-
-## Troubleshooting
-
-**Codex says `TOOLS []`.**  
-Make sure Codex is configured for `wire_api = "responses"` and that you are running a current Nodex build.
-
-**Every `/v1/*` request returns `401`.**  
-The server and Codex terminal must use the same `NODEX_API_KEY`.
-
-**The Custom Agent cannot be found.**  
-Check `agentPageId`, run `node dist/cli.js auth`, then run `node dist/cli.js doctor`.
-
-**Need more diagnostics.**  
-Run `node dist/cli.js doctor`, use the interactive dashboard, or set `NODEX_VERBOSE=1`.
-
-## Development
-
-Before opening a pull request or cutting a release, run:
-
-```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
-```
-
-## Release checklist
-
-- Confirm `package.json`, `package-lock.json`, `CHANGELOG.md`, and the release tag use the same version.
-- Keep `README.md` and every `docs/i18n/README.*.md` in sync.
-- Run typecheck, lint, tests, and build.
-- Create a git tag such as `v0.1.23`.
-- Publish a GitHub Release with clear notes, breaking changes, and upgrade instructions.
+Il percorso normale non richiede DevTools né modifiche manuali al JSON.
 
 ## Licenza
 
-Nodex is licensed under the [Apache License 2.0](../../LICENSE).
-
-## Disclaimer
-
-Nodex is an unofficial bridge for personal developer workflows. It is not affiliated with Notion or OpenAI.
+[Apache License 2.0](../../LICENSE)
