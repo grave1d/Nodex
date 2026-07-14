@@ -2,7 +2,9 @@
 
 > Используй своего Notion Custom Agent как мозг Codex.
 
-[![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org/) [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)](https://www.typescriptlang.org/) [![API](https://img.shields.io/badge/API-OpenAI%20Responses-000000)](https://platform.openai.com/docs/api-reference/responses) [![Tools](https://img.shields.io/badge/tools-local%20execution-blue)](#security-notes) [![Notion](https://img.shields.io/badge/Notion-Custom%20Agent-black)](https://www.notion.so/product/ai)
+[![CI](https://github.com/grave1d/Nodex/actions/workflows/ci.yml/badge.svg)](https://github.com/grave1d/Nodex/actions/workflows/ci.yml) [![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org/) [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)](https://www.typescriptlang.org/) [![API](https://img.shields.io/badge/API-OpenAI%20Responses-000000)](https://platform.openai.com/docs/api-reference/responses) [![Tools](https://img.shields.io/badge/tools-local%20execution-blue)](#security-notes) [![Notion](https://img.shields.io/badge/Notion-Custom%20Agent-black)](https://www.notion.so/product/ai)
+
+**npm package:** `nodex-ai` · **installed CLI command:** `nodex`
 
 **Languages:** 🇬🇧 [English](../../README.md) · 🇨🇳 [中文](README.zh-CN.md) · 🇮🇳 [हिन्दी](README.hi.md) · 🇪🇸 [Español](README.es.md) · 🇫🇷 [Français](README.fr.md) · 🇸🇦 [العربية](README.ar.md) · 🇧🇩 [বাংলা](README.bn.md) · 🇧🇷 [Português](README.pt-BR.md) · 🇷🇺 [Русский](README.ru.md) · 🇵🇰 [اردو](README.ur.md) · 🇩🇪 [Deutsch](README.de.md) · 🇯🇵 [日本語](README.ja.md) · 🇮🇹 [Italiano](README.it.md) · 🇺🇦 [Українська](README.uk.md) · 🇵🇱 [Polski](README.pl.md) · 🇷🇸 [Српски](README.sr.md)
 
@@ -67,7 +69,7 @@ Set-Location Nodex
 npm install
 Copy-Item nodex.config.example.json nodex.config.json
 npm run build
-npx nodex auth
+node dist/cli.js auth
 ```
 
 ### macOS / Linux
@@ -78,7 +80,7 @@ cd Nodex
 npm install
 cp nodex.config.example.json nodex.config.json
 npm run build
-npx nodex auth
+node dist/cli.js auth
 ```
 
 ## Настройка binding для Notion-агента
@@ -107,24 +109,24 @@ npx nodex auth
 
 ```powershell
 $env:NODEX_API_KEY = "replace-with-a-local-random-value"
-npx nodex serve
+node dist/cli.js serve
 ```
 
 ### macOS / Linux
 
 ```bash
 export NODEX_API_KEY="replace-with-a-local-random-value"
-npx nodex serve
+node dist/cli.js serve
 ```
 
 ## Проверка доступа
 
 ```bash
-npx nodex doctor
-npx nodex doctor --live
+node dist/cli.js doctor
+node dist/cli.js doctor --live
 ```
 
-`npx nodex doctor` проверяет локальный config и credentials. `npx nodex doctor --live` создаёт реальный Notion-тред и расходует Notion AI quota.
+`node dist/cli.js doctor` проверяет локальный config и credentials. `node dist/cli.js doctor --live` создаёт реальный Notion-тред и расходует Notion AI quota.
 
 ## Подключение Codex
 
@@ -184,7 +186,7 @@ requires_openai_auth = false
 
 ## Интерактивная консоль
 
-В реальном TTY `npx nodex serve` показывает компактный локализованный dashboard со здоровьем сервера, API URL и активными model bindings.
+В реальном TTY `node dist/cli.js serve` показывает компактный локализованный dashboard со здоровьем сервера, API URL и активными model bindings.
 
 - `H` or `?` — help
 - `R` — run a deep Notion health check
@@ -200,7 +202,7 @@ requires_openai_auth = false
 - Используйте сильный локальный `NODEX_API_KEY` и запускайте Codex с тем же значением.
 - Не коммитьте `nodex.config.json`, `.env`, credentials, cookies, SQLite-файлы, HAR-captures или сырые upstream logs.
 - Browser auth flow хранит Notion credentials локально в `~/.nodex/credentials.json`.
-- Используйте `npx nodex auth --manual`, если browser automation не проходит Notion login или SSO.
+- Используйте `node dist/cli.js auth --manual`, если browser automation не проходит Notion login или SSO.
 
 ## Troubleshooting
 
@@ -211,10 +213,10 @@ requires_openai_auth = false
 Сервер и терминал Codex должны использовать один и тот же `NODEX_API_KEY`.
 
 **Custom Agent не найден.**  
-Проверьте `agentPageId`, выполните `npx nodex auth`, затем `npx nodex doctor`.
+Проверьте `agentPageId`, выполните `node dist/cli.js auth`, затем `node dist/cli.js doctor`.
 
 **Нужно больше диагностики.**  
-Запустите `npx nodex doctor`, используйте dashboard или включите `NODEX_VERBOSE=1`.
+Запустите `node dist/cli.js doctor`, используйте dashboard или включите `NODEX_VERBOSE=1`.
 
 ## Разработка
 
@@ -229,7 +231,7 @@ npm run build
 
 ## Release checklist
 
-- Добавьте настоящий файл `LICENSE` перед стабильным публичным релизом.
+- Убедитесь, что версии в `package.json`, `package-lock.json`, `CHANGELOG.md` и release tag совпадают.
 - Держите `README.md` и все `docs/i18n/README.*.md` синхронизированными.
 - Запустите typecheck, lint, tests и build.
 - Создайте git tag, например `v0.1.23`.
@@ -237,7 +239,7 @@ npm run build
 
 ## Лицензия
 
-Выберите и добавьте файл `LICENSE` до стабильного публичного релиза. Для такого developer tool сильный дефолт — Apache-2.0: она permissive и содержит явный patent grant. MIT тоже подходит, если нужна максимально короткая и простая permissive-лицензия.
+Nodex распространяется по [лицензии Apache 2.0](../../LICENSE).
 
 ## Disclaimer
 

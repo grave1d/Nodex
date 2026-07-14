@@ -324,6 +324,9 @@ export function buildServer(
   const models = new ModelRegistry(config, transport, images, embeddings);
   const core = new NodexCore(config, store, transport, app.log, files, images);
   const activeResponses = new Map<string, AbortController>();
+  // Read once at startup so authentication cannot change mid-request when the
+  // parent process mutates its environment (for example, in an embedded server).
+  const localApiKey = process.env['NODEX_API_KEY'];
 
   const executeStoredResponse = async (args: {
     record: StoredResponseRecord;
@@ -415,9 +418,7 @@ export function buildServer(
 
     if (!request.url.startsWith('/v1/')) return;
 
-    const key = process.env['NODEX_API_KEY'];
-
-    if (key && !authorized(request.headers.authorization, key)) {
+    if (localApiKey && !authorized(request.headers.authorization, localApiKey)) {
       await sendApiError(reply, new NodexError('auth', 'Invalid local API key'), request.id);
     }
   });

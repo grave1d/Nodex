@@ -1,5 +1,5 @@
 {
-  "name": "nodex",
+  "name": "nodex-ai",
   "version": "0.1.23",
   "description": "Local OpenAI-compatible bridge that connects Notion Custom Agents to Codex.",
   "type": "module",

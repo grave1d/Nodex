@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
-  { ignores: ['dist/**', 'coverage/**', 'test/**', 'eslint.config.js'] },
+  { ignores: ['dist/**', 'coverage/**', 'test/**', 'eslint.config.js', 'vitest.config.ts'] },
   {
     languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
     rules: {
