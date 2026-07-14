@@ -57,7 +57,5 @@ Usage:
   nodex auth [--manual] Connect a Notion account
   nodex doctor [--live] Check configuration and Notion access
   nodex --help           Show this help
-  nodex --version        Show the installed version
-
-Nodex uses an unofficial private Notion API. Credentials stay local.`;
+  nodex --version        Show the installed version`;
 }

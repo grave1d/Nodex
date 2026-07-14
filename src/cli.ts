@@ -105,7 +105,7 @@ async function serve(args: string[]): Promise<void> {
 
   const paint = (): void => {
     if (!state) return;
-    process.stdout.write(`\u001b[2J\u001b[H${renderDashboard(state, !('NO_COLOR' in process.env))}`);
+    process.stdout.write(`\u001b[?25l\u001b[2J\u001b[H${renderDashboard(state, !('NO_COLOR' in process.env))}`);
   };
 
   const removeListeners = (): void => {
@@ -137,7 +137,7 @@ async function serve(args: string[]): Promise<void> {
           destination.flushSync();
           destination.end();
         }
-        if (interactive) process.stdout.write('\n');
+        if (interactive) process.stdout.write('\u001b[?25h\n');
         finish?.();
       }
     })();

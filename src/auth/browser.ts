@@ -48,6 +48,7 @@ export type BrowserAuthStatus = 'opening' | 'checking-session' | 'waiting-for-si
 export interface BrowserAuthOptions {
   timeoutMs?: number;
   onStatus?: (status: BrowserAuthStatus) => void;
+  forceSignIn?: boolean;
 }
 
 export function defaultBrowserProfilePath(): string {
@@ -72,11 +73,15 @@ export async function browserAuth(options: number | BrowserAuthOptions = {}): Pr
   try {
     const credentialUrls = ['https://www.notion.so', 'https://app.notion.com', 'https://www.notion.com'];
     status('checking-session');
-    const existing = extractCredentials(await context.cookies(credentialUrls));
-    if (existing) {
-      await saveCredentials(existing);
-      status('authenticated');
-      return existing;
+    if (resolvedOptions.forceSignIn) {
+      await context.clearCookies({ name: /^(?:token_v2|notion_browser_id)$/ });
+    } else {
+      const existing = extractCredentials(await context.cookies(credentialUrls));
+      if (existing) {
+        await saveCredentials(existing);
+        status('authenticated');
+        return existing;
+      }
     }
     const page = context.pages()[0] ?? await context.newPage();
     await page.goto('https://www.notion.so/login');

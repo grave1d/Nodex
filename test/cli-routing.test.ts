@@ -1,10 +1,16 @@
+import { EventEmitter } from 'node:events';
+import type { ReadStream, WriteStream } from 'node:tty';
 import { expect, it } from 'vitest';
 import {
   cliHelp,
   resolveCliInvocation,
   shouldUseSetupWizard,
 } from '../src/cli-routing.js';
-import { menuKeyAction, renderSetupMenu } from '../src/setup/terminal.js';
+import {
+  menuKeyAction,
+  ProcessSetupTerminal,
+  renderSetupMenu,
+} from '../src/setup/terminal.js';
 
 const tty = { env: {}, stdinIsTTY: true, stdoutIsTTY: true };
 
@@ -23,6 +29,7 @@ it('keeps explicit commands and conventional help behavior', () => {
   expect(resolveCliInvocation(['--version'], tty).command).toBe('version');
   expect(cliHelp('0.2.0')).toContain('nodex setup');
   expect(cliHelp('0.2.0')).not.toContain('\u001b[');
+  expect(cliHelp('0.2.0')).not.toContain('unofficial private Notion API');
 });
 
 it('maps setup navigation keys and renders safely without ANSI', () => {
@@ -36,4 +43,35 @@ it('maps setup navigation keys and renders safely without ANSI', () => {
   ], 0, [], false);
   expect(rendered).toContain('Safe [31m label');
   expect(rendered).not.toContain('\u001b');
+});
+
+it('keeps result content visible while waiting and restores the hidden cursor', async () => {
+  class Input extends EventEmitter {
+    isRaw = false;
+    setRawMode(value: boolean): this { this.isRaw = value; return this; }
+    resume(): this { return this; }
+    pause(): this { return this; }
+  }
+  class Output {
+    text = '';
+    write(value: string): boolean { this.text += value; return true; }
+  }
+  const input = new Input();
+  const output = new Output();
+  const terminal = new ProcessSetupTerminal(
+    input as unknown as ReadStream,
+    output as unknown as WriteStream,
+    false,
+  );
+
+  terminal.screen(['Diagnostics results', 'OK: configured']);
+  const paused = terminal.pause('Diagnostics results', 'Continue');
+  input.emit('keypress', '\r', { name: 'return', sequence: '\r' });
+  await paused;
+  terminal.close();
+
+  expect(output.text).toContain('Diagnostics results\nOK: configured');
+  expect(output.text.match(/\u001b\[2J/g)).toHaveLength(1);
+  expect(output.text).toContain('\u001b[?25l');
+  expect(output.text.endsWith('\u001b[?25h')).toBe(true);
 });

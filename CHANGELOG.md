@@ -6,6 +6,25 @@ This project uses semantic versioning while the public API stabilizes. During `0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-14
+
+### Added
+
+- Setup language selection now includes every language available in the README and persists the choice.
+- Custom Agent setup now includes a Notion model picker built from known and workspace-discovered models.
+- Animated progress states now cover setup operations.
+
+### Changed
+
+- First launch defaults to English, and disconnected setup shows only connection, language, documentation, and exit actions.
+- Connected setup offers an explicit Notion account switch and returns directly to the menu after API-key security handling.
+- The private-API warning is no longer printed in the setup header or CLI help.
+
+### Fixed
+
+- Setup and server dashboards hide the terminal cursor while active and restore it on exit.
+- Diagnostic results remain visible while waiting for the user to continue.
+
 ## [0.2.0] - 2026-07-14
 
 ### Added

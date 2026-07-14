@@ -73,10 +73,18 @@ it('persists only a validated console language choice', async () => {
 
   expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ language: 'ru' });
   expect(await loadConsoleLanguage(path, 'en')).toBe('ru');
-  expect(toggleConsoleLanguage('ru')).toBe('en');
+  expect(toggleConsoleLanguage('ru')).toBe('ur');
+
+  await saveConsoleLanguage('ja', path);
+  expect(await loadConsoleLanguage(path)).toBe('ja');
 
   await writeFile(path, '{"language":"unsupported","secret":"ignored"}', 'utf8');
   expect(await loadConsoleLanguage(path, 'en')).toBe('en');
+});
+
+it('uses English on the first launch regardless of the system locale', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'nodex-dashboard-language-'));
+  expect(await loadConsoleLanguage(join(directory, 'missing.json'))).toBe('en');
 });
 
 it('prepares a private append-only destination for structured logs', async () => {

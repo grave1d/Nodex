@@ -52,13 +52,38 @@ async function notionFetch(path: string, init: FetchInit) {
 type NotionResponse = Awaited<ReturnType<typeof notionFetch>>;
 export type NotionFetcher = (path: string, init: FetchInit) => Promise<NotionResponse>;
 
-const KNOWN_MODEL_SLUGS: Readonly<Record<string, string>> = {
-  'GPT-5.6 Sol': 'orange-mousse',
-  'orange-mousse': 'orange-mousse',
-};
+export interface NotionModelOption {
+  slug: string;
+  name: string;
+}
+
+export const KNOWN_NOTION_MODELS: readonly NotionModelOption[] = [
+  { name: 'GPT-5.6 Sol', slug: 'orange-mousse' },
+];
+
+const KNOWN_MODEL_SLUGS: Readonly<Record<string, string>> = Object.fromEntries(
+  KNOWN_NOTION_MODELS.flatMap(({ name, slug }) => [[name, slug], [slug, slug]]),
+);
 const KNOWN_MODEL_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(KNOWN_MODEL_SLUGS).filter(([name, slug]) => name !== slug).map(([name, slug]) => [slug, name]),
 );
+
+export function notionModelOptions(
+  agents: readonly DiscoveredNotionAgent[],
+): NotionModelOption[] {
+  const models = new Map(KNOWN_NOTION_MODELS.map((model) => [model.slug, model]));
+  for (const agent of agents) {
+    if (!agent.modelSlug) continue;
+    const existing = models.get(agent.modelSlug);
+    if (!existing || agent.modelName) {
+      models.set(agent.modelSlug, {
+        slug: agent.modelSlug,
+        name: agent.modelName ?? agent.modelSlug,
+      });
+    }
+  }
+  return [...models.values()];
+}
 
 interface Account extends PreflightInfo { credentials: Credentials }
 interface ThreadState { configId: string; contextId: string; originalDatetime: string; notionModel: string; updatedConfigIds: string[] }

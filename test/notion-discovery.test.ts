@@ -5,6 +5,7 @@ import { diagnoseAgentBindings } from '../src/setup/diagnostics.js';
 import {
   discoveredAgentsFromRecords,
   InternalNotionTransport,
+  notionModelOptions,
   type NotionFetcher,
 } from '../src/transport/notion.js';
 
@@ -99,6 +100,18 @@ it('returns an empty list when the account has no accessible agents', async () =
   await transport.preflight(credentials);
   await expect(transport.discoverCustomAgents()).resolves.toEqual([]);
   expect(calls).toEqual(['loadUserContent', 'getCustomAgents']);
+});
+
+it('builds model choices from known and workspace-discovered agent models', () => {
+  const agents = discoveredAgentsFromRecords(
+    workflows(),
+    ['workflow-one', 'workflow-two'],
+    { id: 'space-id' },
+  );
+  expect(notionModelOptions(agents)).toEqual([
+    { name: 'GPT Test', slug: 'orange-mousse' },
+    { name: 'test-model', slug: 'test-model' },
+  ]);
 });
 
 it('diagnoses a workflow ID and proposes the matching instructions page ID', () => {

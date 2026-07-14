@@ -102,7 +102,7 @@ export async function planConfigUpdate(
   const nextBinding = generatedBinding(agent, record(models[modelId]));
   if (serialized(models[modelId]) !== serialized(nextBinding)) {
     models[modelId] = nextBinding;
-    summary.push(`${modelId}: ${agent.name}`);
+    summary.push(`${modelId}: ${agent.name} · ${agent.modelName ?? agent.modelSlug ?? 'Notion Custom Agent'}`);
   }
   const next = { ...current, models };
   const changed = serialized(current) !== serialized(next);

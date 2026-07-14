@@ -21,6 +21,11 @@ export interface SetupTerminal {
     header?: readonly string[],
   ): Promise<boolean>;
   pause(message: string, continueLabel: string): Promise<void>;
+  wait<T>(
+    message: string,
+    operation: (update: (message: string) => void) => Promise<T>,
+  ): Promise<T>;
+  close(): void;
 }
 
 export type MenuKeyAction = 'up' | 'down' | 'select' | 'back' | 'cancel' | 'none';
@@ -70,6 +75,8 @@ export function renderSetupMenu<T extends string>(
 
 export class ProcessSetupTerminal implements SetupTerminal {
   private readonly ansi: boolean;
+  private cursorHidden = false;
+  private hasScreen = false;
 
   constructor(
     private readonly input: ReadStream = process.stdin,
@@ -80,7 +87,27 @@ export class ProcessSetupTerminal implements SetupTerminal {
     emitKeypressEvents(this.input);
   }
 
+  private hideCursor(): void {
+    if (this.cursorHidden) return;
+    this.output.write('\u001b[?25l');
+    this.cursorHidden = true;
+  }
+
+  private startInput(): boolean {
+    const wasRaw = this.input.isRaw;
+    this.input.setRawMode(true);
+    this.input.resume();
+    return wasRaw;
+  }
+
+  private stopInput(wasRaw: boolean): void {
+    this.input.setRawMode(wasRaw);
+    this.input.pause();
+  }
+
   screen(lines: readonly string[]): void {
+    this.hideCursor();
+    this.hasScreen = true;
     this.output.write(`\u001b[2J\u001b[H${lines.map(clean).join('\n')}\n`);
   }
 
@@ -90,10 +117,10 @@ export class ProcessSetupTerminal implements SetupTerminal {
     options: { header?: readonly string[]; initial?: number; allowBack?: boolean } = {},
   ): Promise<T | undefined> {
     if (!choices.length) return undefined;
+    this.hideCursor();
+    this.hasScreen = true;
     let selected = Math.max(0, Math.min(options.initial ?? 0, choices.length - 1));
-    const wasRaw = this.input.isRaw;
-    this.input.setRawMode(true);
-    this.input.resume();
+    const wasRaw = this.startInput();
 
     const paint = (): void => {
       this.output.write(`\u001b[2J\u001b[H${renderSetupMenu(title, choices, selected, options.header, this.ansi)}`);
@@ -129,8 +156,7 @@ export class ProcessSetupTerminal implements SetupTerminal {
         this.input.on('keypress', onKeypress);
       });
     } finally {
-      this.input.setRawMode(wasRaw);
-      this.input.pause();
+      this.stopInput(wasRaw);
     }
   }
 
@@ -153,6 +179,73 @@ export class ProcessSetupTerminal implements SetupTerminal {
   }
 
   async pause(message: string, continueLabel: string): Promise<void> {
-    await this.choose(message, [{ value: 'continue', label: continueLabel }], { allowBack: true });
+    if (!this.hasScreen) this.screen([message]);
+    this.hideCursor();
+    const wasRaw = this.startInput();
+    this.output.write(`\n${style(this.ansi, 36, `› ${clean(continueLabel)}`)}\n`);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const onKeypress = (
+          _sequence: string,
+          key: { name?: string; sequence?: string; ctrl?: boolean },
+        ): void => {
+          const action = menuKeyAction(key);
+          if (action === 'cancel') {
+            this.input.removeListener('keypress', onKeypress);
+            reject(new SetupCancelledError());
+            return;
+          }
+          if (action === 'select' || action === 'back') {
+            this.input.removeListener('keypress', onKeypress);
+            resolve();
+          }
+        };
+        this.input.on('keypress', onKeypress);
+      });
+    } finally {
+      this.stopInput(wasRaw);
+    }
+  }
+
+  async wait<T>(
+    message: string,
+    operation: (update: (message: string) => void) => Promise<T>,
+  ): Promise<T> {
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let frame = 0;
+    let current = message;
+    this.hideCursor();
+    this.hasScreen = true;
+    const paint = (): void => {
+      const icon = frames[frame++ % frames.length] ?? '•';
+      this.output.write(`\u001b[2J\u001b[H${style(this.ansi, 36, icon)} ${clean(current)}\n`);
+    };
+    const update = (next: string): void => {
+      current = next;
+      paint();
+    };
+    paint();
+    const timer = setInterval(paint, 80);
+    timer.unref();
+    try {
+      const minimum = new Promise<void>((resolve) => { setTimeout(resolve, 240); });
+      const outcome = await operation(update).then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
+      await minimum;
+      if (!outcome.ok) throw outcome.error;
+      return outcome.value;
+    } finally {
+      clearInterval(timer);
+    }
+  }
+
+  close(): void {
+    if (this.input.isRaw) this.input.setRawMode(false);
+    this.input.pause();
+    if (!this.cursorHidden) return;
+    this.output.write('\u001b[?25h');
+    this.cursorHidden = false;
   }
 }
